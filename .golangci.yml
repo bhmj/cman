@@ -1,0 +1,57 @@
+version: "2"
+run:
+  tests: false
+linters:
+  default: all
+  disable:
+    - embeddedstructfieldcheck  # too opinionated
+    - err113        # this one is temporary; must refactor errors.
+    - errchkjson    # can json.Marshal fail?
+    - godot
+    - godox
+    - ireturn       # I don't care for returning interfaces. It's easier this way.
+    - lll
+    - nlreturn
+    - noinlineerr   # too opinionated
+    - tagalign      # tag alignment is a supid idea.
+    - tagliatelle   # json fields are named for reason, don't tell me how to name them.
+    - varnamelen    # I decide if the variable name is long enough.
+    - wsl
+    - wsl_v5        # way too opinionated
+  settings:
+    funlen:
+      lines: 80
+      statements: 60
+    cyclop:
+      max-complexity: 16
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: "math/rand$"
+              desc: use math/rand/v2
+            - pkg: "github.com/sirupsen/logrus"
+              desc: not allowed
+            - pkg: "github.com/pkg/errors"
+              desc: Should be replaced by standard lib errors package
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

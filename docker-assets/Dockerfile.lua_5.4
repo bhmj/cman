@@ -1,0 +1,6 @@
+FROM nickblah/lua:5.4-alpine
+RUN apk update && apk upgrade && addgroup -g 1337 -S dummy && adduser -u 1337 -G dummy -S dummy
+RUN apk add gcc musl-dev make libc-dev openssl-dev luarocks5.4
+RUN luarocks-5.4 install luasocket && luarocks-5.4 install lua-messagepack && luarocks-5.4 install luasec && luarocks-5.4 install dkjson
+USER dummy
+CMD ["sh"]

@@ -1,0 +1,8 @@
+name: Python
+resident: true
+category: interpreter
+compiler_image: combobox-python
+default_script: python -u main.py
+versions:
+  "3.13":
+    image_tag: "3.13"

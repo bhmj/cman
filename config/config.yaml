@@ -1,0 +1,38 @@
+app:
+  log_level: info
+  shutdown_delay: 1s
+  http:
+    port: 8260
+    stats_port: 8261
+    token: {{CMAN_HTTP_TOKEN}}
+    metrics:
+      namespace: cman
+cman:
+  api_base: api
+  sandbox:
+    name: cman
+    root_dir: {{CMAN_ROOT_DIR}}
+    limit_total_ram: {{CMAN_LIMIT_TOTAL_RAM}}
+    limits:
+      ram: {{CMAN_LIMIT_CONTAINER_RAM}}
+      cpus: {{CMAN_LIMIT_CONTAINER_CPUS}}
+      cpu_time: {{CMAN_LIMIT_CONTAINER_CPU_TIME}}
+      net: {{CMAN_LIMIT_CONTAINER_NETWORK_TRAFIC}}
+      run_time: {{CMAN_LIMIT_CONTAINER_RUN_TIME}}
+      tmp_dir: {{CMAN_LIMIT_CONTAINER_TMP_DIR}}
+    defaults:
+      ram: 300
+      cpus: 500
+      cpu_time: 10000
+      net: 0
+      run_time: 10
+      tmp_dir: 0
+    retention_period: 10m
+    sandboxes:
+      - go.yaml
+      - ruby.yaml
+      - python.yaml
+      - lua.yaml
+      - rust.yaml
+      - cpp.yaml
+      - dosasm.yaml

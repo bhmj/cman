@@ -1,0 +1,13 @@
+FROM qemux/qemu
+
+RUN apt update && apt install -y mtools socat bsdmainutils vim mc gdb-multiarch && apt-get clean
+
+COPY dosasm/hd_msdos.img /stor/hd.img
+COPY dosasm/floppy.img /stor/floppy.img
+COPY dosasm/run-* /app/
+COPY dosasm/detect-type /app/
+COPY dosasm/dos-cmd /usr/local/bin/
+RUN chmod +x /app/run-* /usr/local/bin/dos-cmd
+
+ENTRYPOINT ["tini", "--"]
+CMD ["/app/run-qemu"]

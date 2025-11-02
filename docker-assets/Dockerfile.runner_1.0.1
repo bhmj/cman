@@ -1,0 +1,5 @@
+FROM alpine:latest
+RUN apk update && apk add libstdc++ gcompat && addgroup -g 1337 -S dummy && adduser -u 1337 -G dummy -S dummy
+USER dummy
+WORKDIR /home/dummy
+CMD ["sh"]

@@ -1,0 +1,38 @@
+name: DosASM
+resident: true
+category: interpreter
+compiler_image: combobox-dosasm
+default_cmd: true
+ready_string: "::STREAM::READY"
+versions:
+  "1.0-tasm":
+    image_tag: "1.0"
+    script: /app/run-cman-asm t
+    cache_volumes:
+      - volume_name: combobox-dosasm-src-tasm
+        mount_path: /src
+  "1.0-masm":
+    image_tag: "1.0"
+    script: /app/run-cman-asm m
+    cache_volumes:
+      - volume_name: combobox-dosasm-src-masm
+        mount_path: /src
+  "1.0-fasm":
+    image_tag: "1.0"
+    script: /app/run-cman-asm f
+    cache_volumes:
+      - volume_name: combobox-dosasm-src-fasm
+        mount_path: /src
+  "1.0-nasm":
+    image_tag: "1.0"
+    script: /app/run-cman-asm n
+    cache_volumes:
+      - volume_name: combobox-dosasm-src-nasm
+        mount_path: /src
+compiler_resources:
+  ram: 300
+  cpus: 1000
+  cpu_time: 10000
+  net: 0
+  run_time: 10
+  tmp_dir: 5

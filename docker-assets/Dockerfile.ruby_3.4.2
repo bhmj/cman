@@ -1,0 +1,4 @@
+FROM ruby:3.4.2-alpine
+RUN apk update && addgroup -g 1337 -S dummy && adduser -u 1337 -G dummy -S dummy
+USER dummy
+CMD ["sh"]

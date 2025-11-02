@@ -1,0 +1,6 @@
+/bin/*
+*.psql
+playground/
+/internal/pkg/containermanager/tmp/
+.env_prod
+internal/**/.*.*

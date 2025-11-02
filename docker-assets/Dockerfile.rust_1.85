@@ -1,0 +1,9 @@
+FROM rust:1.85-alpine
+RUN apk update && addgroup -g 1337 -S dummy && adduser -u 1337 -G dummy -S dummy
+RUN apk add zlib zlib-dev g++ vim mc strace
+COPY rust/build /usr/local/bin/
+RUN chmod +x /usr/local/bin/build && mkdir -p /home/dummy/.cargo /home/dummy/project && chown dummy:dummy /home/dummy/.cargo /home/dummy/project
+USER dummy
+WORKDIR /home/dummy
+ENV CARGO_HOME=/home/dummy/.cargo
+CMD ["sh"]

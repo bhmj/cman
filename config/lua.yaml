@@ -1,0 +1,8 @@
+name: Lua
+resident: false
+category: interpreter
+compiler_image: combobox-lua
+default_script: lua main.lua
+versions:
+  "5.4":
+    image_tag: "5.4"

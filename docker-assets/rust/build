@@ -1,0 +1,19 @@
+#!/bin/sh
+
+cd /home/dummy/project
+
+# once: setup
+[ ! -f "Cargo.toml" ] && cargo init > /dev/null 2>&1
+
+# add dependencies
+mv ../main.rs src/main.rs
+missing_crates=$(cargo check 2>&1 | grep "\^ use of undeclared crate or module" | sed 's/.*`\([a-z_-]\+\)`/\1/' | sort | uniq)
+for crate in $missing_crates; do
+    cargo add "$crate" > /dev/null 2>&1
+done
+
+# build
+cargo build > /tmp/rust.build 2>&1
+CODE=$?
+[ $CODE -ne 0 ] && cat /tmp/rust.build || mv target/debug/project ../main
+exit $CODE

@@ -1,0 +1,19 @@
+name: Cpp
+resident: true
+category: compiler
+compiler_image: combobox-cpp
+runner_image: combobox-runner:1.0.1
+versions:
+  "14.2.0-c":
+    image_tag: "14.2.0"
+    script: build-c
+  "14.2.0-cpp":
+    image_tag: "14.2.0"
+    script: build-cpp
+compiler_resources:
+  ram: 300
+  cpus: 1000
+  cpu_time: 20000
+  net: 50
+  run_time: 20
+  tmp_dir: 80

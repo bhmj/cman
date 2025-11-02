@@ -1,0 +1,8 @@
+FROM gcc:14.2.0-bookworm
+
+RUN addgroup --system --gid 1337 dummy && adduser --system --uid 1337 --gid 1337 dummy
+COPY cpp/build-c cpp/build-cpp /usr/local/bin/
+RUN chmod +x /usr/local/bin/build-c /usr/local/bin/build-cpp
+USER dummy
+WORKDIR /home/dummy
+CMD ["sh"]

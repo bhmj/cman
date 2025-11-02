@@ -1,0 +1,5 @@
+#!/bin/sh
+gcc -o main main.c > /tmp/build.log 2>&1
+CODE=$?
+[ $CODE -ne 0 ] && cat /tmp/build.log
+exit $CODE

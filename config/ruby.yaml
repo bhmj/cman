@@ -1,0 +1,8 @@
+name: Ruby
+resident: true
+category: interpreter
+compiler_image: combobox-ruby
+default_script: ruby main.rb
+versions:
+  "3.4.2":
+    image_tag: "3.4.2"
