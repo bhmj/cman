@@ -80,6 +80,7 @@ type ContainerSetup struct {
 	WorkingDirRO     bool
 	CacheVolume      []string
 	CacheVolumeMount []string
+	Envs             map[string]string
 	Label            string // {compiler|runner}-{lang}-{version}
 	Resources
 }
