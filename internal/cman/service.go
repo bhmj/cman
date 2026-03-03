@@ -46,3 +46,7 @@ func (s *Service) Run(ctx context.Context) error {
 	<-ctx.Done()
 	return nil
 }
+
+func (s *Service) GetSessionData(SID string) (any, error) {
+	return nil, nil
+}

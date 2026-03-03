@@ -7,12 +7,28 @@ import (
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
-// EnvelopeConvertible represents any type that can be converted to a Sentry envelope.
-// This interface allows the telemetry buffers to be generic while still working with
-// concrete types like Event.
-type EnvelopeConvertible interface {
-	// ToEnvelope converts the item to a Sentry envelope.
-	ToEnvelope(dsn *Dsn) (*Envelope, error)
+// TelemetryItem represents any telemetry data that can be stored in buffers and sent to Sentry.
+// This is the base interface that all telemetry items must implement.
+type TelemetryItem interface {
+	// GetCategory returns the rate limit category for this item.
+	GetCategory() ratelimit.Category
+
+	// GetEventID returns the event ID for this item.
+	GetEventID() string
+
+	// GetSdkInfo returns SDK information for the envelope header.
+	GetSdkInfo() *SdkInfo
+
+	// GetDynamicSamplingContext returns trace context for the envelope header.
+	GetDynamicSamplingContext() map[string]string
+}
+
+// EnvelopeItemConvertible represents items that can be converted directly to envelope items.
+type EnvelopeItemConvertible interface {
+	TelemetryItem
+
+	// ToEnvelopeItem converts the item to a Sentry envelope item.
+	ToEnvelopeItem() (*EnvelopeItem, error)
 }
 
 // TelemetryTransport represents the envelope-first transport interface.
@@ -23,8 +39,8 @@ type TelemetryTransport interface {
 	// backpressure error if the queue is full.
 	SendEnvelope(envelope *Envelope) error
 
-	// SendEvent sends an event to Sentry.
-	SendEvent(event EnvelopeConvertible)
+	// HasCapacity reports whether the transport has capacity to accept at least one more envelope.
+	HasCapacity() bool
 
 	// IsRateLimited checks if a specific category is currently rate limited
 	IsRateLimited(category ratelimit.Category) bool

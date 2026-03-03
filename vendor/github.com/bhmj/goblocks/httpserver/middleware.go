@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -18,7 +19,10 @@ type HandlerWithResult func(w http.ResponseWriter, r *http.Request) (int, error)
 
 type ContextKey string
 
-const ContextRequestID ContextKey = "requestID"
+const (
+	ContextRequestID   ContextKey = "requestID"
+	ContextSessionData ContextKey = "sessionData"
+)
 
 // before router middlewares
 
@@ -71,10 +75,34 @@ func panicLoggerMiddleware(next http.Handler, logger log.MetaLogger) http.Handle
 	}
 }
 
+func corsMiddleware(next http.Handler, domain string) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", domain)
+		w.Header().Set("Access-Control-Allow-Methods", "POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		if req.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, req)
+	}
+}
+
 // after router middlewares
 
-func instrumentationMiddleware(handler HandlerWithResult, logger log.MetaLogger, metrics *serviceMetrics, service, endpoint string) http.HandlerFunc {
+func instrumentationMiddleware(
+	handler HandlerWithResult,
+	logger log.MetaLogger,
+	metrics *serviceMetrics,
+	service, endpoint string,
+	sessionGetter SessionDataGetter,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+
 		// get real remote address
 		remoteAddr := r.RemoteAddr
 		if x, found := r.Header["X-Forwarded-For"]; found {
@@ -100,12 +128,28 @@ func instrumentationMiddleware(handler HandlerWithResult, logger log.MetaLogger,
 
 		ctx := context.WithValue(r.Context(), log.ContextMetaLogger, contextLogger)
 		ctx = context.WithValue(ctx, ContextRequestID, reqID) // used in panic middleware
+
+		if sessionGetter != nil { //nolint:nestif
+			// query session data
+			cookie, err := r.Cookie("SID")
+			if err == nil {
+				sessionData, err := sessionGetter(cookie.Value)
+				if err != nil {
+					contextLogger.Error("failed to get session data", log.Error(err))
+				} else {
+					ctx = context.WithValue(ctx, ContextSessionData, sessionData)
+				}
+			} else if errors.Is(err, http.ErrNoCookie) {
+				contextLogger.Error("missing SID cookie")
+			}
+		}
+
 		contextLogger.Info("start")
 		// metrics
 		startTime := time.Now()
 		code, err := handler(w, r.WithContext(ctx))
 		defer metrics.ScoreMethod(service, endpoint, startTime, err)
-		contextLogger.Info("finish")
+		contextLogger.Info("finish", log.Duration("took", time.Since(startTime)))
 		// errorer
 		if err != nil {
 			contextLogger.Error("runtime", log.String("rid", reqID), log.Error(err), log.MainMessage())

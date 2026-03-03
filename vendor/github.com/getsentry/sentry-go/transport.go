@@ -150,7 +150,7 @@ func encodeEnvelopeItem(enc *json.Encoder, itemType string, body json.RawMessage
 	return err
 }
 
-func encodeEnvelopeLogs(enc *json.Encoder, itemsLength int, body json.RawMessage) error {
+func encodeEnvelopeLogs(enc *json.Encoder, count int, body json.RawMessage) error {
 	err := enc.Encode(
 		struct {
 			Type        string `json:"type"`
@@ -158,8 +158,25 @@ func encodeEnvelopeLogs(enc *json.Encoder, itemsLength int, body json.RawMessage
 			ContentType string `json:"content_type"`
 		}{
 			Type:        logEvent.Type,
-			ItemCount:   itemsLength,
+			ItemCount:   count,
 			ContentType: logEvent.ContentType,
+		})
+	if err == nil {
+		err = enc.Encode(body)
+	}
+	return err
+}
+
+func encodeEnvelopeMetrics(enc *json.Encoder, count int, body json.RawMessage) error {
+	err := enc.Encode(
+		struct {
+			Type        string `json:"type"`
+			ItemCount   int    `json:"item_count"`
+			ContentType string `json:"content_type"`
+		}{
+			Type:        traceMetricEvent.Type,
+			ItemCount:   count,
+			ContentType: traceMetricEvent.ContentType,
 		})
 	if err == nil {
 		err = enc.Encode(body)
@@ -205,6 +222,8 @@ func envelopeFromBody(event *Event, dsn *Dsn, sentAt time.Time, body json.RawMes
 		err = encodeEnvelopeItem(enc, event.Type, body)
 	case logEvent.Type:
 		err = encodeEnvelopeLogs(enc, len(event.Logs), body)
+	case traceMetricEvent.Type:
+		err = encodeEnvelopeMetrics(enc, len(event.Metrics), body)
 	default:
 		err = encodeEnvelopeItem(enc, eventType, body)
 	}
@@ -656,12 +675,16 @@ func (t *HTTPSyncTransport) SendEventWithContext(ctx context.Context, event *Eve
 
 	var eventIdentifier string
 	switch event.Type {
+	case errorType:
+		eventIdentifier = "error"
 	case transactionType:
 		eventIdentifier = "transaction"
 	case logEvent.Type:
-		eventIdentifier = fmt.Sprintf("%v log events", len(event.Logs))
+		eventIdentifier = fmt.Sprintf("%d log events", len(event.Logs))
+	case traceMetricEvent.Type:
+		eventIdentifier = fmt.Sprintf("%d metric events", len(event.Metrics))
 	default:
-		eventIdentifier = fmt.Sprintf("%s event", event.Level)
+		eventIdentifier = fmt.Sprintf("%s event", event.Type)
 	}
 	debuglog.Printf(
 		"Sending %s [%s] to %s project: %s",
@@ -788,7 +811,29 @@ func (a *internalAsyncTransportAdapter) Configure(options ClientOptions) {
 }
 
 func (a *internalAsyncTransportAdapter) SendEvent(event *Event) {
-	a.transport.SendEvent(event)
+	header := &protocol.EnvelopeHeader{EventID: string(event.EventID), SentAt: time.Now(), Sdk: &protocol.SdkInfo{Name: event.Sdk.Name, Version: event.Sdk.Version}}
+	if a.dsn != nil {
+		header.Dsn = a.dsn.String()
+	}
+	if header.EventID == "" {
+		header.EventID = protocol.GenerateEventID()
+	}
+	envelope := protocol.NewEnvelope(header)
+	item, err := event.ToEnvelopeItem()
+	if err != nil {
+		debuglog.Printf("Failed to convert event to envelope item: %v", err)
+		return
+	}
+	envelope.AddItem(item)
+
+	for _, attachment := range event.Attachments {
+		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
+		envelope.AddItem(attachmentItem)
+	}
+
+	if err := a.transport.SendEnvelope(envelope); err != nil {
+		debuglog.Printf("Error sending envelope: %v", err)
+	}
 }
 
 func (a *internalAsyncTransportAdapter) Flush(timeout time.Duration) bool {

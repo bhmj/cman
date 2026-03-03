@@ -636,6 +636,10 @@ func (sm *sandboxManager) prepareSources(cont *runningContainer, cargo *Cargo) e
 		return fmt.Errorf("create container dir: %w", err)
 	}
 	_ = file.ClearDirectory(appDir, true)
+	// allow compiler to write to the container dir
+	if err := os.Chmod(appDir, 0o777); err != nil { //nolint:mnd
+		return fmt.Errorf("chmod container dir: %w", err)
+	}
 	for fname, content := range cargo.Files {
 		// #nosec
 		err = os.WriteFile(filepath.Join(appDir, fname), []byte(content), 0755) //nolint:mnd

@@ -31,8 +31,11 @@ const rateLimitBurstRatio = float64(1.2) // allow this % bursts of incoming requ
 // Server implements basic Kube-dispatched HTTP server
 type Server interface {
 	Run(ctx context.Context) error
-	HandleFunc(service, endpoint, method, path string, handler HandlerWithResult)
+	HandleFunc(service, endpoint, method, path string, handler HandlerWithResult, sessionGetter SessionDataGetter)
 }
+
+// SessionDataGetter is a function which returns session data extracted from the storage using SID cookie.
+type SessionDataGetter func(SID string) (any, error)
 
 type httpserver struct {
 	name    string
@@ -65,13 +68,16 @@ func NewServer(
 
 	// middlewares sequence (in order of execution during request handling):
 	//
-	// -> http server
+	// http server ->
 	//
-	// connection limiting
-	// rate limiting
-	// authentication
-	// sentry handler
-	// panic logging (logs panic and repanics for sentry)
+	// CORS middleware (if enabled) ->
+	// connection limiting ->
+	// rate limiting ->
+	// authentication ->
+	// sentry handler ->
+	// authentication ->
+	// sentry handler ->
+	// panic logging (logs panic and repanics for sentry) ->
 	//
 	// -> ROUTER (determine the necessity of further processing)
 	//
@@ -79,20 +85,21 @@ func NewServer(
 	//
 	// -> SERVICE HANDLER
 
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
 	safetyWrappers := func(router Router) http.Handler {
-		return connLimiterMiddleware(
-			rateLimiterMiddleware(
-				authMiddleware(
-					sentryHandler.HandleFunc(
-						panicLoggerMiddleware(router, logger),
-					),
-					authProvider,
-				),
-				rateLimiter,
-			),
-			connWatcher,
-			cfg.OpenConnLimit,
-		)
+		var handler http.Handler
+		handler = panicLoggerMiddleware(router, logger)
+		handler = sentryHandler.Handle(handler)
+		handler = authMiddleware(handler, authProvider)
+		handler = rateLimiterMiddleware(handler, rateLimiter)
+		handler = connLimiterMiddleware(handler, connWatcher, cfg.OpenConnLimit)
+		if cfg.CORS {
+			handler = corsMiddleware(handler, cfg.Domain)
+		}
+		return handler
 	}
 
 	srv := &httpserver{
@@ -151,10 +158,10 @@ func (s *httpserver) Run(ctx context.Context) error {
 	}
 }
 
-func (s *httpserver) HandleFunc(service, endpoint, method, path string, handler HandlerWithResult) {
+func (s *httpserver) HandleFunc(service, endpoint, method, path string, handler HandlerWithResult, sessionGetter SessionDataGetter) {
 	s.router.HandleFunc(
 		method,
 		"/"+strings.TrimPrefix(path, "/"),
-		instrumentationMiddleware(handler, s.logger, s.metrics, service, endpoint),
+		instrumentationMiddleware(handler, s.logger, s.metrics, service, endpoint, sessionGetter),
 	)
 }

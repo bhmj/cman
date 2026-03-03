@@ -2,8 +2,8 @@ app:
   log_level: info
   shutdown_delay: 1s
   http:
-    port: 8260
-    stats_port: 8261
+    port: {{CCMAN_API_PORT}}
+    stats_port: {{CCMAN_METRICS_PORT}}
     token: {{CMAN_HTTP_TOKEN}}
     metrics:
       namespace: cman

@@ -1,31 +1,45 @@
 SHELL := /bin/bash
 
+GO_VERSION=$(shell grep "^go " go.mod | awk '{print $$2}')
+
 define load_env
 	@set -a && . $(1) && set +a && \
 	$(MAKE) --no-print-directory $(2)
 endef
 
-# application binary type for docker image
-export DOCKER_GOOS=linux
-export DOCKER_GOARCH=amd64
-# Go version to use while building binaries for docker image
-export GOLANG_VERSION=1.24
-# golang OS tag for building binaries for docker image
-export GOLANG_IMAGE=alpine 
-# target OS: the image type to run in production. Usually alpine fits OK.
-export TARGET_DISTR_TYPE=alpine
-# target OS version (codename)
-export TARGET_DISTR_VERSION=latest
-# a user created inside the container
-# files created by those services on mounted volumes will be owned by this user
-export DOCKER_USER=$(USER)
+GIT_SHA=$(shell git rev-parse --short HEAD)
 
-LDFLAGS = -s -w -X main.appVersion=dev-$(shell git rev-parse --short HEAD)-$(shell date +%y-%m-%d-%H%M%S)
+LDFLAGS = -s -w -X main.appVersion=dev-$(GIT_SHA)
 PROJECT = $(shell basename $(PWD))
 BIN = ./bin
 SRC = ./cmd
 BINARY = $(BIN)/$(PROJECT)
 ROOT=$(PWD)
+
+REGISTRY := registry.combobox.cc
+REGISTRY_USER ?= combobox
+IMAGE_BACKEND := cman
+VERSION_FILE := version
+NEW_APP_VERSION := $(shell test -f $(VERSION_FILE) && awk -F. '{printf "%d.%d\n",$$1,$$2+1}' $(VERSION_FILE) || echo "0.1")
+
+APP_USER ?= dummy
+GOOS ?= linux
+GOARCH ?= amd64
+GOLANG_VERSION ?= $(GO_VERSION)
+GOLANG_IMAGE ?= alpine
+TARGET_DISTR_TYPE ?= alpine
+TARGET_DISTR_VERSION ?= latest
+
+DOCKER_BUILD_ARGS := \
+	--build-arg APP_USER=$(APP_USER) \
+	--build-arg GOOS=$(GOOS) \
+	--build-arg GOARCH=$(GOARCH) \
+	--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+	--build-arg GOLANG_IMAGE=$(GOLANG_IMAGE) \
+	--build-arg TARGET_DISTR_TYPE=$(TARGET_DISTR_TYPE) \
+	--build-arg TARGET_DISTR_VERSION=$(TARGET_DISTR_VERSION) \
+	--build-arg LDFLAGS='$(LDFLAGS)' \
+	--platform $(GOOS)/$(GOARCH)
 
 define USAGE
 
@@ -39,6 +53,9 @@ some of the <targets> are:
   lint                   - run linters
   gosec                  - Go security checker
   test                   - run tests
+  docker-login           - login to $(REGISTRY)
+  docker-build           - build docker image
+  release                - build and push Docker image for k8s ($(REGISTRY))
   {dev|stage|prod}-up    - run the app in developer | staging | production mode
   down                   - stop the app
 
@@ -57,19 +74,6 @@ What it will do:
 Press Enter to continue, Ctrl+C to quit
 endef
 export SETUP_HELP
-
-define DOCKER_PARAMS
---build-arg USER=$(DOCKER_USER) \
---build-arg GOOS=$(DOCKER_GOOS) \
---build-arg GOARCH=$(DOCKER_GOARCH) \
---build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
---build-arg GOLANG_IMAGE=$(GOLANG_IMAGE) \
---build-arg TARGET_DISTR_TYPE=$(TARGET_DISTR_TYPE) \
---build-arg TARGET_DISTR_VERSION=$(TARGET_DISTR_VERSION) \
---build-arg LDFLAGS="$(LDFLAGS)" \
---file Dockerfile
-endef
-export DOCKER_PARAMS
 
 define CAKE
    \033[1;31m. . .\033[0m
@@ -108,6 +112,19 @@ gosec:
 test:
 	go test ./...	
 
+docker-login:
+	@echo "Logging in to $(REGISTRY)"
+	docker login --username "$(REGISTRY_USER)" $(REGISTRY)
+
+docker-build:
+	echo Go version: $(GO_VERSION)
+	docker build --tag $(REGISTRY)/$(IMAGE_BACKEND):$(NEW_APP_VERSION) $(DOCKER_BUILD_ARGS) --target cman-k8s .
+
+release: docker-build
+	echo "Pushing image..."
+	docker push $(REGISTRY)/$(IMAGE_BACKEND):$(NEW_APP_VERSION)
+	printf "\n\nApplication version released: %s\n" "$(NEW_APP_VERSION)" && echo "$(NEW_APP_VERSION)" > version
+
 down:
 	-kill $$(cat $(BIN)/cman.pid) && rm $(BIN)/cman.pid
 
@@ -130,6 +147,6 @@ run-up: down
 cake:
 	printf "%b\n" "$$CAKE"
 
-.PHONY: help setup update-deps all build lint test down dev-up stage-up prod-up run-up cake
+.PHONY: help setup update-deps all build lint test docker-login docker-build release down dev-up stage-up prod-up run-up cake
 
 $(V).SILENT:
